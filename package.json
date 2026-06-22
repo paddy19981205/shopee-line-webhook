@@ -1,0 +1,18 @@
+{
+  "name": "shopee-comet-ui-automation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test *.test.js",
+    "start": "node line-webhook-server.js",
+    "draft": "node comet-shopee-send.js",
+    "send": "node comet-shopee-send.js --send",
+    "line:webhook": "node line-webhook-server.js",
+    "batch:dry-run": "node batch-send.js --file users.csv",
+    "batch:send": "node batch-send.js --file users.csv --send --confirm-send SEND"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

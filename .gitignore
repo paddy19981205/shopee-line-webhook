@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.*
+
+batch-send-log.csv
+line-targets.jsonl
+notification-*.csv
+notification-*.txt
+parse-summary*.json
+users.csv
+users.[0-9]*.csv
