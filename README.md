@@ -72,6 +72,18 @@ node batch-send.js --file users.csv --send --confirm-send SEND \
   --line-notify --line-target <LINE_GROUP_ID>
 ```
 
+Recommended production flow when LINE is hosted on Render:
+
+```bash
+LINE_PUSH_ENDPOINT=https://shopee-line-webhook.onrender.com/line/push \
+LINE_ADMIN_TOKEN=<LINE_ADMIN_TOKEN from Render> \
+node batch-send.js --file users.csv --send --confirm-send SEND --line-notify
+```
+
+The LINE message includes the final counts and all Shopee buyer usernames that
+were not successfully notified. If the failed-user list is too long for one
+LINE text message, the script splits it into multiple LINE messages.
+
 Resume after an interruption, skipping users already marked successful in the
 log for the same action:
 
@@ -90,6 +102,8 @@ Useful options:
 - `--timeout-ms 15000`: max wait for finding and verifying each chat.
 - `--line-notify`: send a LINE completion message after the batch finishes.
 - `--line-target <LINE_GROUP_ID>`: LINE group, room, or user ID to receive the completion message. You can also set `LINE_NOTIFY_TARGET_ID`.
+- `--line-push-endpoint <URL>`: send through the deployed relay endpoint, for example `https://shopee-line-webhook.onrender.com/line/push`.
+- `--line-admin-token <TOKEN>`: admin token for the deployed relay endpoint. You can also set `LINE_ADMIN_TOKEN`.
 - `--line-title "蝦皮通知"`: title used in the LINE completion message.
 
 ### LINE Webhook API

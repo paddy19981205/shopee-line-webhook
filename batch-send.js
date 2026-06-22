@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { automate, DEFAULT_TIMEOUT_MS, preflightComet } from "./comet-ui.js";
-import { buildBatchSummaryMessage, pushLineText } from "./line-client.js";
+import { buildBatchSummaryMessages, pushLineText, pushLineTextViaEndpoint } from "./line-client.js";
 
 const DEFAULT_MIN_DELAY_MS = 3000;
 const DEFAULT_MAX_DELAY_MS = 8000;
@@ -13,7 +13,7 @@ function usage(exitCode = 0) {
   node batch-send.js --file users.csv [--dry-run]
   node batch-send.js --file users.csv --limit 5 --send --confirm-send SEND
   node batch-send.js --file users.csv --send --confirm-send SEND --resume
-  node batch-send.js --file users.csv --send --confirm-send SEND --line-notify --line-target <LINE_GROUP_ID>
+  node batch-send.js --file users.csv --send --confirm-send SEND --line-notify
 
 CSV columns:
   username,message
@@ -41,6 +41,8 @@ function parseArgs(argv) {
     logFile: DEFAULT_LOG_FILE,
     lineNotify: false,
     lineTarget: process.env.LINE_NOTIFY_TARGET_ID || "",
+    linePushEndpoint: process.env.LINE_PUSH_ENDPOINT || "",
+    lineAdminToken: process.env.LINE_ADMIN_TOKEN || "",
     lineTitle: "蝦皮通知",
   };
 
@@ -77,6 +79,10 @@ function parseArgs(argv) {
       args.lineNotify = true;
     } else if (arg === "--line-target") {
       args.lineTarget = argv[++i] || "";
+    } else if (arg === "--line-push-endpoint") {
+      args.linePushEndpoint = argv[++i] || "";
+    } else if (arg === "--line-admin-token") {
+      args.lineAdminToken = argv[++i] || "";
     } else if (arg === "--line-title") {
       args.lineTitle = argv[++i] || "";
     } else {
@@ -109,8 +115,12 @@ function parseArgs(argv) {
     console.error("--min-delay-ms and --max-delay-ms must be valid, non-negative numbers.");
     process.exit(1);
   }
-  if (args.lineNotify && !args.lineTarget) {
-    console.error("--line-notify requires --line-target or LINE_NOTIFY_TARGET_ID.");
+  if (args.lineNotify && !args.linePushEndpoint && !args.lineTarget) {
+    console.error("--line-notify requires LINE_PUSH_ENDPOINT, --line-push-endpoint, --line-target, or LINE_NOTIFY_TARGET_ID.");
+    process.exit(1);
+  }
+  if (args.lineNotify && args.linePushEndpoint && !args.lineAdminToken) {
+    console.error("--line-push-endpoint requires --line-admin-token or LINE_ADMIN_TOKEN.");
     process.exit(1);
   }
 
@@ -289,6 +299,7 @@ async function main() {
   let success = 0;
   let failed = 0;
   let skipped = 0;
+  const failedUsers = [];
 
   for (let index = 0; index < selected.length; index += 1) {
     const record = selected[index];
@@ -335,6 +346,7 @@ async function main() {
       });
     } catch (error) {
       failed += 1;
+      failedUsers.push(record.username);
       console.log(`${label}: failed (${error.message})`);
       appendLog(logPath, {
         timestamp: new Date().toISOString(),
@@ -360,7 +372,7 @@ async function main() {
   }
 
   if (args.lineNotify) {
-    const lineText = buildBatchSummaryMessage({
+    const lineMessages = buildBatchSummaryMessages({
       title: args.lineTitle,
       mode: args.send ? "SEND" : "DRY-RUN",
       inputFile: filePath,
@@ -368,14 +380,26 @@ async function main() {
       failed,
       skipped,
       logFile: logPath,
+      failedUsers,
     });
 
     try {
-      await pushLineText({
-        accessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
-        to: args.lineTarget,
-        text: lineText,
-      });
+      for (const lineText of lineMessages) {
+        if (args.linePushEndpoint) {
+          await pushLineTextViaEndpoint({
+            endpointUrl: args.linePushEndpoint,
+            adminToken: args.lineAdminToken,
+            to: args.lineTarget,
+            text: lineText,
+          });
+        } else {
+          await pushLineText({
+            accessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
+            to: args.lineTarget,
+            text: lineText,
+          });
+        }
+      }
       console.log(`LINE notification sent to ${args.lineTarget}.`);
     } catch (error) {
       console.error(`LINE notification failed: ${error.message}`);
