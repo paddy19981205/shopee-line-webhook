@@ -23,6 +23,25 @@ function appendTargets(targetLogFile, targets) {
   }
 }
 
+function readTargets(targetLogFile) {
+  if (!fs.existsSync(targetLogFile)) return [];
+  return fs.readFileSync(targetLogFile, "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
+export async function handleLineTargetsRequest({ headers, adminToken, targetLogFile }) {
+  if (!adminToken) {
+    return jsonResponse(403, { ok: false, error: "Missing LINE_ADMIN_TOKEN" });
+  }
+  const auth = headers.authorization || headers.Authorization || "";
+  if (auth !== `Bearer ${adminToken}`) {
+    return jsonResponse(401, { ok: false, error: "Invalid admin token" });
+  }
+  return jsonResponse(200, { ok: true, targets: readTargets(targetLogFile) });
+}
+
 export async function handleLineWebhookRequest({ method, body, headers, channelSecret, targetLogFile }) {
   if (method !== "POST") {
     return jsonResponse(405, { ok: false, error: "Method not allowed" });
@@ -123,6 +142,15 @@ export function createLineWebhookServer({
           headers: request.headers,
           adminToken,
           accessToken,
+        }));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/line/targets") {
+        send(response, await handleLineTargetsRequest({
+          headers: request.headers,
+          adminToken,
+          targetLogFile,
         }));
         return;
       }

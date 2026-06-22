@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { handleLineWebhookRequest } from "./line-webhook-server.js";
+import { handleLineTargetsRequest, handleLineWebhookRequest } from "./line-webhook-server.js";
 
 function signature(body, secret) {
   return createHmac("sha256", secret).update(body).digest("base64");
@@ -40,4 +40,22 @@ test("handleLineWebhookRequest rejects invalid LINE signatures", async () => {
   });
 
   assert.equal(response.statusCode, 401);
+});
+
+test("handleLineTargetsRequest returns recorded targets when admin token is valid", async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "line-targets-"));
+  const targetLogFile = path.join(tmpDir, "targets.jsonl");
+  fs.writeFileSync(targetLogFile, `${JSON.stringify({ type: "group", id: "Cgroup", timestamp: "2026-06-22T00:00:00.000Z" })}\n`);
+
+  const response = await handleLineTargetsRequest({
+    headers: { authorization: "Bearer admin" },
+    adminToken: "admin",
+    targetLogFile,
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(JSON.parse(response.body), {
+    ok: true,
+    targets: [{ type: "group", id: "Cgroup", timestamp: "2026-06-22T00:00:00.000Z" }],
+  });
 });
